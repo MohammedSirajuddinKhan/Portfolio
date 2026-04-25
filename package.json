@@ -1,0 +1,22 @@
+{
+  "name": "siraj-portfolio",
+  "version": "1.0.0",
+  "description": "Modern animated portfolio with Node contact form backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "portfolio",
+    "nodejs",
+    "gsap",
+    "express"
+  ],
+  "author": "Mohammed Sirajuddin Khan",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "nodemon": "^3.1.14"
+  }
+}

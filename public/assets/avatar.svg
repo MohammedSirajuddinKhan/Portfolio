@@ -1,0 +1,20 @@
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="84" y1="42" x2="579" y2="618" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#102C44" />
+      <stop offset="1" stop-color="#1F537A" />
+    </linearGradient>
+    <linearGradient id="shirt" x1="219" y1="372" x2="420" y2="546" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14F195" />
+      <stop offset="1" stop-color="#9DFF2F" />
+    </linearGradient>
+  </defs>
+  <rect width="640" height="640" rx="32" fill="url(#bg)"/>
+  <circle cx="320" cy="240" r="124" fill="#F6C18B"/>
+  <path d="M190 510C206 426 259 384 320 384C381 384 434 426 450 510V568H190V510Z" fill="url(#shirt)"/>
+  <path d="M193 228C197 147 250 98 320 98C390 98 443 147 447 228C420 204 390 190 320 190C250 190 220 204 193 228Z" fill="#071927"/>
+  <circle cx="274" cy="249" r="13" fill="#152634"/>
+  <circle cx="366" cy="249" r="13" fill="#152634"/>
+  <path d="M271 312C296 332 344 332 369 312" stroke="#A44E2B" stroke-width="8" stroke-linecap="round"/>
+  <text x="50%" y="612" dominant-baseline="middle" text-anchor="middle" fill="#F2F2F2" font-size="36" font-family="Orbitron, sans-serif">Mohammed Sirajuddin Khan</text>
+</svg>
