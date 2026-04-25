@@ -210,22 +210,13 @@ img {
 
 .btn:hover {
   transform: translateY(-2px);
+  box-shadow: #39d353;
 }
 
 .btn-primary {
   background: linear-gradient(120deg, var(--brand), var(--brand-strong));
   color: #0d1207;
   box-shadow: 0 10px 24px rgba(157, 255, 47, 0.35);
-}
-
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.22);
-}
-
-.btn-ghost {
-  border-color: rgba(255, 255, 255, 0.3);
-  color: var(--text);
 }
 
 .about {
