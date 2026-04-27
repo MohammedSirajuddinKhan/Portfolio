@@ -134,6 +134,7 @@ app.post("/api/contact", async (req, res) => {
   try {
     let storedInMongo = false;
     let storedInFile = false;
+    let emailSent = false;
 
     try {
       const contactsCollection = await getMongoCollection();
@@ -155,14 +156,47 @@ app.post("/api/contact", async (req, res) => {
       storedInFile = true;
     }
 
-    if (!storedInMongo && !storedInFile) {
-      return res.status(500).json({
-        ok: false,
-        error: "Failed to store your message. Please try again later.",
+    if (mailTransporter) {
+      try {
+        await mailTransporter.sendMail({
+          from: `Portfolio Contact <${process.env.SMTP_USER}>`,
+          to: CONTACT_RECEIVER_EMAIL,
+          subject: `New portfolio message from ${entry.name}`,
+          replyTo: entry.email,
+          text: [
+            `Name: ${entry.name}`,
+            `Email: ${entry.email}`,
+            "",
+            "Message:",
+            entry.message,
+            "",
+            `Sent at: ${entry.createdAt}`,
+          ].join("\n"),
+        });
+
+        emailSent = true;
+      } catch (emailError) {
+        console.error("Failed to send contact email:", emailError.message);
+      }
+    }
+
+    if (emailSent && (storedInMongo || storedInFile)) {
+      return res.status(201).json({
+        ok: true,
+        message: "Message sent and saved successfully.",
+        id: entry.id,
       });
     }
 
-    if (!mailTransporter) {
+    if (emailSent) {
+      return res.status(201).json({
+        ok: true,
+        message: "Message sent successfully.",
+        id: entry.id,
+      });
+    }
+
+    if (storedInMongo || storedInFile) {
       return res.status(201).json({
         ok: true,
         message:
@@ -171,36 +205,11 @@ app.post("/api/contact", async (req, res) => {
       });
     }
 
-    try {
-      await mailTransporter.sendMail({
-        from: `Portfolio Contact <${process.env.SMTP_USER}>`,
-        to: CONTACT_RECEIVER_EMAIL,
-        subject: `New portfolio message from ${entry.name}`,
-        replyTo: entry.email,
-        text: [
-          `Name: ${entry.name}`,
-          `Email: ${entry.email}`,
-          "",
-          "Message:",
-          entry.message,
-          "",
-          `Sent at: ${entry.createdAt}`,
-        ].join("\n"),
-      });
-
-      return res.status(201).json({
-        ok: true,
-        message: "Message sent successfully.",
-        id: entry.id,
-      });
-    } catch (emailError) {
-      console.error("Failed to send contact email:", emailError.message);
-      return res.status(500).json({
-        ok: false,
-        error:
-          "Message was received, but email delivery failed. Check SMTP settings.",
-      });
-    }
+    return res.status(500).json({
+      ok: false,
+      error:
+        "Unable to process message. Configure SMTP and/or MongoDB to enable contact delivery.",
+    });
   } catch (error) {
     console.error("Failed to process contact message:", error.message);
     return res.status(500).json({
