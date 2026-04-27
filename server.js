@@ -2,25 +2,35 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const nodemailer = require("nodemailer");
+const { MongoClient } = require("mongodb");
 require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const IS_VERCEL = process.env.VERCEL === "1";
+const SHOULD_PERSIST_MESSAGES =
+  !IS_VERCEL && process.env.PERSIST_CONTACT_MESSAGES !== "false";
 const DATA_DIR = path.join(__dirname, "data");
 const MESSAGES_FILE = path.join(DATA_DIR, "contacts.json");
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+if (SHOULD_PERSIST_MESSAGES) {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
 
-if (!fs.existsSync(MESSAGES_FILE)) {
-  fs.writeFileSync(MESSAGES_FILE, "[]", "utf8");
+  if (!fs.existsSync(MESSAGES_FILE)) {
+    fs.writeFileSync(MESSAGES_FILE, "[]", "utf8");
+  }
 }
 
 const CONTACT_RECEIVER_EMAIL =
   process.env.CONTACT_RECEIVER_EMAIL || "sirajuddinkhan7718@gmail.com";
+const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || "portfolio";
+const MONGODB_COLLECTION = process.env.MONGODB_COLLECTION || "contacts";
 
 let mailTransporter = null;
+let mongoClientPromise = null;
 
 if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
   const smtpPassword = process.env.SMTP_PASS.replace(/\s+/g, "");
@@ -36,7 +46,34 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
   });
 }
 
+const getMongoCollection = async () => {
+  if (!MONGODB_URI) {
+    return null;
+  }
+
+  if (!mongoClientPromise) {
+    const mongoClient = new MongoClient(MONGODB_URI, {
+      // Small serverless-friendly pool for this portfolio API.
+      maxPoolSize: IS_VERCEL ? 5 : 20,
+      minPoolSize: IS_VERCEL ? 0 : 2,
+      maxIdleTimeMS: IS_VERCEL ? 20000 : 300000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 30000,
+      serverSelectionTimeoutMS: 5000,
+    });
+
+    mongoClientPromise = mongoClient.connect();
+  }
+
+  const mongoClient = await mongoClientPromise;
+  return mongoClient.db(MONGODB_DB_NAME).collection(MONGODB_COLLECTION);
+};
+
 const readMessages = () => {
+  if (!SHOULD_PERSIST_MESSAGES) {
+    return [];
+  }
+
   try {
     const raw = fs.readFileSync(MESSAGES_FILE, "utf8").trim();
 
@@ -53,6 +90,10 @@ const readMessages = () => {
 };
 
 const writeMessages = (messages) => {
+  if (!SHOULD_PERSIST_MESSAGES) {
+    return;
+  }
+
   fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2), "utf8");
 };
 
@@ -64,7 +105,7 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, service: "portfolio-api" });
 });
 
-app.post("/api/contact", (req, res) => {
+app.post("/api/contact", async (req, res) => {
   const { name, email, message } = req.body;
 
   if (!name || !email || !message) {
@@ -91,9 +132,35 @@ app.post("/api/contact", (req, res) => {
   };
 
   try {
-    const current = readMessages();
-    current.push(entry);
-    writeMessages(current);
+    let storedInMongo = false;
+    let storedInFile = false;
+
+    try {
+      const contactsCollection = await getMongoCollection();
+      if (contactsCollection) {
+        await contactsCollection.insertOne(entry);
+        storedInMongo = true;
+      }
+    } catch (mongoError) {
+      console.error(
+        "Failed to store contact message in MongoDB:",
+        mongoError.message,
+      );
+    }
+
+    if (!storedInMongo && SHOULD_PERSIST_MESSAGES) {
+      const current = readMessages();
+      current.push(entry);
+      writeMessages(current);
+      storedInFile = true;
+    }
+
+    if (!storedInMongo && !storedInFile) {
+      return res.status(500).json({
+        ok: false,
+        error: "Failed to store your message. Please try again later.",
+      });
+    }
 
     if (!mailTransporter) {
       return res.status(201).json({
@@ -104,8 +171,8 @@ app.post("/api/contact", (req, res) => {
       });
     }
 
-    return mailTransporter
-      .sendMail({
+    try {
+      await mailTransporter.sendMail({
         from: `Portfolio Contact <${process.env.SMTP_USER}>`,
         to: CONTACT_RECEIVER_EMAIL,
         subject: `New portfolio message from ${entry.name}`,
@@ -119,23 +186,23 @@ app.post("/api/contact", (req, res) => {
           "",
           `Sent at: ${entry.createdAt}`,
         ].join("\n"),
-      })
-      .then(() => {
-        return res.status(201).json({
-          ok: true,
-          message: "Message sent successfully.",
-          id: entry.id,
-        });
-      })
-      .catch((error) => {
-        console.error("Failed to send contact email:", error.message);
-        return res.status(500).json({
-          ok: false,
-          error:
-            "Message was saved, but email delivery failed. Check SMTP settings.",
-        });
       });
+
+      return res.status(201).json({
+        ok: true,
+        message: "Message sent successfully.",
+        id: entry.id,
+      });
+    } catch (emailError) {
+      console.error("Failed to send contact email:", emailError.message);
+      return res.status(500).json({
+        ok: false,
+        error:
+          "Message was received, but email delivery failed. Check SMTP settings.",
+      });
+    }
   } catch (error) {
+    console.error("Failed to process contact message:", error.message);
     return res.status(500).json({
       ok: false,
       error: "Failed to save your message. Please try again later.",
@@ -147,6 +214,10 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`Portfolio server running on http://localhost:${PORT}`);
-});
+if (IS_VERCEL) {
+  module.exports = app;
+} else {
+  app.listen(PORT, () => {
+    console.log(`Portfolio server running on http://localhost:${PORT}`);
+  });
+}
