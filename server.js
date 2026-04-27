@@ -34,6 +34,31 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, service: "portfolio-api" });
 });
 
+app.get("/api/email-health", async (req, res) => {
+  if (!mailTransporter) {
+    return res.status(500).json({
+      ok: false,
+      configured: false,
+      error: "SMTP environment variables are missing.",
+    });
+  }
+
+  try {
+    await mailTransporter.verify();
+    return res.json({
+      ok: true,
+      configured: true,
+      message: "SMTP is configured and reachable.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      configured: true,
+      error: "SMTP verification failed. Check credentials or provider settings.",
+    });
+  }
+});
+
 app.post("/api/contact", async (req, res) => {
   const { name, email, message } = req.body;
 
