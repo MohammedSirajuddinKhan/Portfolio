@@ -1,8 +1,6 @@
 # Mohammed Sirajuddin Khan - Backend-Focused Web Developer
 
-## Live Demo
-
-- [Live Portfolio](https://siraj-dev.onrender.com/)
+### Live Demo:  [https://siraj-dev.onrender.com](https://siraj-dev.onrender.com/)
 
 ## About This Portfolio
 
