@@ -1,6 +1,8 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const nodemailer = require("nodemailer");
+require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +16,45 @@ if (!fs.existsSync(DATA_DIR)) {
 if (!fs.existsSync(MESSAGES_FILE)) {
   fs.writeFileSync(MESSAGES_FILE, "[]", "utf8");
 }
+
+const CONTACT_RECEIVER_EMAIL =
+  process.env.CONTACT_RECEIVER_EMAIL || "sirajuddinkhan7718@gmail.com";
+
+let mailTransporter = null;
+
+if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  const smtpPassword = process.env.SMTP_PASS.replace(/\s+/g, "");
+
+  mailTransporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: smtpPassword,
+    },
+  });
+}
+
+const readMessages = () => {
+  try {
+    const raw = fs.readFileSync(MESSAGES_FILE, "utf8").trim();
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    // If the file is corrupted, keep the API running and start fresh.
+    return [];
+  }
+};
+
+const writeMessages = (messages) => {
+  fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2), "utf8");
+};
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -50,15 +91,50 @@ app.post("/api/contact", (req, res) => {
   };
 
   try {
-    const current = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf8"));
+    const current = readMessages();
     current.push(entry);
-    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(current, null, 2), "utf8");
+    writeMessages(current);
 
-    return res.status(201).json({
-      ok: true,
-      message: "Message sent successfully.",
-      id: entry.id,
-    });
+    if (!mailTransporter) {
+      return res.status(201).json({
+        ok: true,
+        message:
+          "Message stored successfully. Configure SMTP env vars to enable email delivery.",
+        id: entry.id,
+      });
+    }
+
+    return mailTransporter
+      .sendMail({
+        from: `Portfolio Contact <${process.env.SMTP_USER}>`,
+        to: CONTACT_RECEIVER_EMAIL,
+        subject: `New portfolio message from ${entry.name}`,
+        replyTo: entry.email,
+        text: [
+          `Name: ${entry.name}`,
+          `Email: ${entry.email}`,
+          "",
+          "Message:",
+          entry.message,
+          "",
+          `Sent at: ${entry.createdAt}`,
+        ].join("\n"),
+      })
+      .then(() => {
+        return res.status(201).json({
+          ok: true,
+          message: "Message sent successfully.",
+          id: entry.id,
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to send contact email:", error.message);
+        return res.status(500).json({
+          ok: false,
+          error:
+            "Message was saved, but email delivery failed. Check SMTP settings.",
+        });
+      });
   } catch (error) {
     return res.status(500).json({
       ok: false,

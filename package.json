@@ -16,7 +16,9 @@
   "author": "Mohammed Sirajuddin Khan",
   "license": "MIT",
   "dependencies": {
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
+    "nodemailer": "^6.10.1",
     "nodemon": "^3.1.14"
   }
 }
