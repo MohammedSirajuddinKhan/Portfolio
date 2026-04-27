@@ -54,7 +54,8 @@ app.get("/api/email-health", async (req, res) => {
     return res.status(500).json({
       ok: false,
       configured: true,
-      error: "SMTP verification failed. Check credentials or provider settings.",
+      error:
+        "SMTP verification failed. Check credentials or provider settings.",
     });
   }
 });
