@@ -98,11 +98,7 @@
         }
 
         return new Promise((resolve) => {
-          img.addEventListener(
-            "load",
-            () => resolve(),
-            { once: true },
-          );
+          img.addEventListener("load", () => resolve(), { once: true });
           img.addEventListener(
             "error",
             () => {
@@ -152,7 +148,9 @@
 
     window.gsap.utils.toArray("section").forEach((section) => {
       window.gsap.from(
-        section.querySelectorAll("h3, h4, p, li, article, img, .btn, .skill-bar"),
+        section.querySelectorAll(
+          "h3, h4, p, li, article, img, .btn, .skill-bar",
+        ),
         {
           scrollTrigger: {
             trigger: section,
@@ -241,7 +239,9 @@
 
   const boot = async () => {
     startLoaderAnimation();
-    await new Promise((resolve) => window.addEventListener("load", resolve, { once: true }));
+    await new Promise((resolve) =>
+      window.addEventListener("load", resolve, { once: true }),
+    );
 
     const issues = await collectReadinessIssues();
 
